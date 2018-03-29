@@ -24,8 +24,8 @@
 #include <dmlc/logging.h>
 #include <dmlc/parameter.h>
 #include <mxnet/operator.h>
-#include "./mshadow_op.h"
-#include "./operator_common.h"
+#include "../mshadow_op.h"
+#include "../operator_common.h"
 
 // namespace
 namespace mxnet {
