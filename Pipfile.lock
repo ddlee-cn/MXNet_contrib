@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "5f0257fe8c7a73db1c8de519faa92c658282a01087eb2bfafba7962704c23e27"
+            "sha256": "679f1410328149b1b174f96edaeb51bfa60e727f36b35add99a655c04990ce63"
         },
         "host-environment-markers": {
             "implementation_name": "cpython",
@@ -21,11 +21,173 @@
         "sources": [
             {
                 "name": "pypi",
-                "url": "https://pypi.python.org/simple",
+                "url": "https://mirrors.ustc.edu.cn/pypi/web/simple",
                 "verify_ssl": true
             }
         ]
     },
-    "default": {},
+    "default": {
+        "bleach": {
+            "hashes": [],
+            "version": "==2.1.3"
+        },
+        "decorator": {
+            "hashes": [],
+            "version": "==4.2.1"
+        },
+        "entrypoints": {
+            "hashes": [],
+            "version": "==0.2.3"
+        },
+        "html5lib": {
+            "hashes": [],
+            "version": "==1.0.1"
+        },
+        "ipykernel": {
+            "hashes": [],
+            "version": "==4.8.2"
+        },
+        "ipython": {
+            "hashes": [],
+            "version": "==6.2.1"
+        },
+        "ipython-genutils": {
+            "hashes": [],
+            "version": "==0.2.0"
+        },
+        "ipywidgets": {
+            "hashes": [],
+            "version": "==7.2.0"
+        },
+        "jedi": {
+            "hashes": [],
+            "version": "==0.11.1"
+        },
+        "jinja2": {
+            "hashes": [],
+            "version": "==2.10"
+        },
+        "jsonschema": {
+            "hashes": [],
+            "version": "==2.6.0"
+        },
+        "jupyter": {
+            "hashes": [],
+            "version": "==1.0.0"
+        },
+        "jupyter-client": {
+            "hashes": [],
+            "version": "==5.2.3"
+        },
+        "jupyter-console": {
+            "hashes": [],
+            "version": "==5.2.0"
+        },
+        "jupyter-core": {
+            "hashes": [],
+            "version": "==4.4.0"
+        },
+        "markupsafe": {
+            "hashes": [],
+            "version": "==1.0"
+        },
+        "mistune": {
+            "hashes": [],
+            "version": "==0.8.3"
+        },
+        "nbconvert": {
+            "hashes": [],
+            "version": "==5.3.1"
+        },
+        "nbformat": {
+            "hashes": [],
+            "version": "==4.4.0"
+        },
+        "notebook": {
+            "hashes": [],
+            "version": "==5.4.1"
+        },
+        "pandocfilters": {
+            "hashes": [],
+            "version": "==1.4.2"
+        },
+        "parso": {
+            "hashes": [],
+            "version": "==0.1.1"
+        },
+        "pexpect": {
+            "hashes": [],
+            "markers": "sys_platform != 'win32'",
+            "version": "==4.4.0"
+        },
+        "pickleshare": {
+            "hashes": [],
+            "version": "==0.7.4"
+        },
+        "prompt-toolkit": {
+            "hashes": [],
+            "version": "==1.0.15"
+        },
+        "ptyprocess": {
+            "hashes": [],
+            "version": "==0.5.2"
+        },
+        "pygments": {
+            "hashes": [],
+            "version": "==2.2.0"
+        },
+        "python-dateutil": {
+            "hashes": [],
+            "version": "==2.7.2"
+        },
+        "pyzmq": {
+            "hashes": [],
+            "version": "==17.0.0"
+        },
+        "qtconsole": {
+            "hashes": [],
+            "version": "==4.3.1"
+        },
+        "send2trash": {
+            "hashes": [],
+            "version": "==1.5.0"
+        },
+        "simplegeneric": {
+            "hashes": [],
+            "version": "==0.8.1"
+        },
+        "six": {
+            "hashes": [],
+            "version": "==1.11.0"
+        },
+        "terminado": {
+            "hashes": [],
+            "version": "==0.8.1"
+        },
+        "testpath": {
+            "hashes": [],
+            "version": "==0.3.1"
+        },
+        "tornado": {
+            "hashes": [],
+            "version": "==5.0.1"
+        },
+        "traitlets": {
+            "hashes": [],
+            "version": "==4.3.2"
+        },
+        "wcwidth": {
+            "hashes": [],
+            "version": "==0.1.7"
+        },
+        "webencodings": {
+            "hashes": [],
+            "version": "==0.5.1"
+        },
+        "widgetsnbextension": {
+            "hashes": [],
+            "version": "==3.2.0"
+        }
+    },
     "develop": {}
 }
