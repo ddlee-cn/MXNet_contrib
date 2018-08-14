@@ -6,3 +6,4 @@
 *.fatbin
 
 .ipynb_checkpoints
+dev_notebook

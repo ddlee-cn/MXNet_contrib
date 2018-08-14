@@ -73,6 +73,7 @@ def test_focal_loss_forward():
     name : string, optional.
         Name of the resulting symbol.
     """
+    np.random.seed(2018)
     # params
     epsilon = 1e-16
     alpha = 0.25
@@ -83,6 +84,7 @@ def test_focal_loss_forward():
     W = 3 #width
     N = 4 #batch size
     C = num_anchors * num_classes
+    wp = 20
     ctx = mx.gpu(0)
 
         # numpy array
@@ -114,7 +116,7 @@ def test_focal_loss_forward():
     norm = mx.sym.Variable('norm')
     x_nd = mx.nd.array(logits, ctx=ctx)
     label_nd = mx.nd.array(label_data, ctx=ctx)
-    norm_nd = mx.nd.array([1], ctx=ctx)
+    norm_nd = mx.nd.array([wp], ctx=ctx)
 
     sym = mx.sym.contrib.SoftmaxFocalLoss(data=x, label=label, normalizer=norm, 
                                             gamma=gamma, alpha=alpha, num_classes=num_classes)
@@ -126,7 +128,7 @@ def test_focal_loss_forward():
     softmax_out = ex.outputs[1].asnumpy()
 
     assert_almost_equal(expected_softmax_prob, softmax_out)
-    assert_almost_equal(expected_losses, focal_loss_out)
+    assert_almost_equal(expected_losses / wp, focal_loss_out)
     print('Softmax Focal Loss Forward Passed.')
 
 def main():
