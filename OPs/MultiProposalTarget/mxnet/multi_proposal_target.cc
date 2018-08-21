@@ -23,6 +23,13 @@
  * \file multi_proposal_target.cc
  * \brief Proposal target layer
  * \author Bharat Singh
+ * \modified by ddlee,
+ * \changes: 
+ * \append original im_info(width, height) to im_info (3, chip_width, chip_height)
+ * \so that len(im_info) 3 -> 5
+ * \use original im_width and im_height to get RoI's relative scale, then match relative valid_range
+ * \as my modified version of Iterator dose
+ * \watch: use mx.sym.MultiProposalTarget rather than mx.sym.contrib.MultiProposalTarget!
 */
 
 #include "./multi_proposal_target-inl.h"
@@ -72,10 +79,10 @@ inline void BBoxTransformInv(float* boxes,
     float pred_x2 = pred_ctr_x + 0.5 * (pred_w - 1.0);
     float pred_y2 = pred_ctr_y + 0.5 * (pred_h - 1.0);
 
-    pred_x1 = std::max(std::min(pred_x1, im_info[3*b+1] - 1.0f), 0.0f);
-    pred_y1 = std::max(std::min(pred_y1, im_info[3*b] - 1.0f), 0.0f);
-    pred_x2 = std::max(std::min(pred_x2, im_info[3*b+1] - 1.0f), 0.0f);
-    pred_y2 = std::max(std::min(pred_y2, im_info[3*b] - 1.0f), 0.0f);
+    pred_x1 = std::max(std::min(pred_x1, im_info[5*b+1] - 1.0f), 0.0f);
+    pred_y1 = std::max(std::min(pred_y1, im_info[5*b] - 1.0f), 0.0f);
+    pred_x2 = std::max(std::min(pred_x2, im_info[5*b+1] - 1.0f), 0.0f);
+    pred_y2 = std::max(std::min(pred_y2, im_info[5*b] - 1.0f), 0.0f);
 
     boxes[5*t] = pred_x1;
     boxes[5*t + 1] = pred_y1;
@@ -153,10 +160,10 @@ inline void NonMaximumSuppression(float* dets,
                                   int height,
                                   float* ranges,
                                   std::vector< std::vector<int> > & final_keep_images) {
-  
+
   int total_anchors = num_images*num_anchors*width*height;
   int chip_anchors = num_anchors*width*height;
-  
+
   float *area = new float[total_anchors];
 
   #pragma omp parallel for num_threads(8)
@@ -176,7 +183,7 @@ inline void NonMaximumSuppression(float* dets,
       sortids[j] = j;
     }
     int chip_index = i*chip_anchors;
-    std::sort(sortids.begin(), sortids.end(), 
+    std::sort(sortids.begin(), sortids.end(),
         [&dets,chip_index](int i1, int i2) {
           return dets[5*(chip_index + i1) + 4] > dets[5*(chip_index + i2) + 4];
         });
@@ -211,7 +218,7 @@ inline void NonMaximumSuppression(float* dets,
       for (int pind = j + 1; pind < max_nms; pind++) {
         if (dbuf[6*pind + 4] == -1) {
           continue;
-        } 
+        }
         float xx1 = std::max(ix1, dbuf[6*pind]);
         float yy1 = std::max(iy1, dbuf[6*pind + 1]);
         float xx2 = std::min(ix2, dbuf[6*pind + 2]);
@@ -272,9 +279,9 @@ class MultiProposalTargetOp : public Operator{
     //std::cout << "quack 2" << std::endl;
     //total number of anchors in a batch
     int total_anchors = count_anchors * num_images;
-    
+
     float *proposals = new float[total_anchors*5];
-    float *im_info = new float[num_images*3];
+    float *im_info = new float[num_images*5];
     float *valid_ranges = new float[num_images*2];
 
     std::vector<float> base_anchor(4);
@@ -309,9 +316,11 @@ class MultiProposalTargetOp : public Operator{
     //std::cout << "quack 4" << std::endl;
     //copy im_info
     for (int i = 0; i < num_images; i++) {
-      im_info[i*3] = tim_info[i][0];
-      im_info[i*3+1] = tim_info[i][1];
-      im_info[i*3+2] = tim_info[i][2];
+      im_info[i*5] = tim_info[i][0];
+      im_info[i*5+1] = tim_info[i][1];
+      im_info[i*5+2] = tim_info[i][2];
+      im_info[i*5+3] = tim_info[i][3];
+      im_info[i*5+4] = tim_info[i][4];
       valid_ranges[i*2] = tvalid_ranges[i][0];
       valid_ranges[i*2+1] = tvalid_ranges[i][1];
     }
@@ -346,7 +355,7 @@ class MultiProposalTargetOp : public Operator{
         rois[base][1] = 0;
         rois[base][2] = 0;
         rois[base][3] = 100;
-        rois[base][4] = 100; 
+        rois[base][4] = 100;
       }
 
     }
@@ -391,7 +400,8 @@ class MultiProposalTargetOp : public Operator{
       for (int k = props_this_batch - numgts_per_image[i], j = 0; k < props_this_batch; j++, k++) {
           float w = gt_boxes[i][j][2] - gt_boxes[i][j][0];
           float h = gt_boxes[i][j][3] - gt_boxes[i][j][1];
-          float area = w*h;
+          // use relative area for valid_range filtering
+          float area = (w*h) / (im_info[5*i+3] * im_info[5*i+4]);
           if (area >= valid_ranges[2*i]*valid_ranges[2*i] && area <= valid_ranges[2*i+1]*valid_ranges[2*i+1]) {
             rois[i*rpn_post_nms_top_n + k][1] = gt_boxes[i][j][0];
             rois[i*rpn_post_nms_top_n + k][2] = gt_boxes[i][j][1];
@@ -497,7 +507,7 @@ class MultiProposalTargetOp : public Operator{
         delete [] max_overlap_ids;
         delete [] overlaps;
         delete [] max_overlaps;
-      }      
+      }
     }
     //std::cout << "quack end" << std::endl;
     delete [] im_info;

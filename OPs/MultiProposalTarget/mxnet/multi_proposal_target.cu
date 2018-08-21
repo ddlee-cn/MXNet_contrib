@@ -23,6 +23,13 @@
  * \file multi_proposal_target.cc
  * \brief Proposal target layer
  * \author Bharat Singh
+ * \modified by ddlee,
+ * \changes: 
+ * \append original im_info(width, height) to im_info (3, chip_width, chip_height)
+ * \so that len(im_info) 3 -> 5
+ * \use original im_width and im_height to get RoI's relative scale, then match relative valid_range
+ * \as my modified version of Iterator dose
+ * \watch: use mx.sym.MultiProposalTarget rather than mx.sym.contrib.MultiProposalTarget!
 */
 
 #include "./multi_proposal_target-inl.h"
@@ -40,7 +47,7 @@
 #include "./operator_common.h"
 #include "./mshadow_op.h"
 #include <time.h>
-#include <stdlib.h> 
+#include <stdlib.h>
 //============================
 // Bounding Box Transform Utils
 //============================
@@ -121,7 +128,7 @@ __global__ void NonMaximumSuppression(float* dets,
                                   int width,
                                   int height,
                                   float* propsout) {
-  
+
   int i = blockIdx.x;
   int t = threadIdx.x;
   int chip_anchors = num_anchors*width*height;
@@ -177,7 +184,7 @@ __global__ void NonMaximumSuppression(float* dets,
       }
       //swap it with the kth element
       float tmpx1, tmpx2, tmpy1, tmpy2, tmps, tmpa;
-      
+
       tmpx1 = dets[6*basep];
       tmpy1 = dets[6*basep+1];
       tmpx2 = dets[6*basep+2];
@@ -207,7 +214,7 @@ __global__ void NonMaximumSuppression(float* dets,
       boxbuf[5] = dets[6*basep+5];
     }
     __syncthreads();
-      
+
     //invalidate all boxes with overlap > 0.7 with max box
 
     float ix1 = boxbuf[0];
@@ -225,7 +232,7 @@ __global__ void NonMaximumSuppression(float* dets,
     for (int pind = j + 1 + t; pind < chip_index + chip_anchors; pind = pind + num_threads) {
       if (dets[6*pind + 4] == -1) {
         continue;
-      } 
+      }
       xx1 = fmaxf(ix1, dets[6*pind]);
       yy1 = fmaxf(iy1, dets[6*pind + 1]);
       xx2 = fminf(ix2, dets[6*pind + 2]);
@@ -275,13 +282,14 @@ __global__ void getProps(float* boxes,
   int t = blockDim.x * blockIdx.x + threadIdx.x;
 
   if (t < num_images * num_anchors) {
-    
+
     int b = t / num_anchors;
     int index = t % num_anchors;
     int a = index / (heights*widths);
     int mat = index % (heights*widths);
     int w = mat % widths; //width index
     int h = mat / widths; //height index
+    // boxes: [x1, y1, x2, y2, score, area]
     boxes[6*t] = anchorbuf[4*a] + w * stride;
     boxes[6*t + 1] = anchorbuf[4*a+1] + h * stride;
     boxes[6*t + 2] = anchorbuf[4*a+2] + w * stride;
@@ -305,15 +313,16 @@ __global__ void getProps(float* boxes,
     float pred_x2 = pred_ctr_x + 0.5 * (pred_w - 1.0);
     float pred_y2 = pred_ctr_y + 0.5 * (pred_h - 1.0);
 
-    pred_x1 = fmaxf(fminf(pred_x1, im_info[3*b+1] - 1.0f), 0.0f);
-    pred_y1 = fmaxf(fminf(pred_y1, im_info[3*b] - 1.0f), 0.0f);
-    pred_x2 = fmaxf(fminf(pred_x2, im_info[3*b+1] - 1.0f), 0.0f);
-    pred_y2 = fmaxf(fminf(pred_y2, im_info[3*b] - 1.0f), 0.0f);
+    // modified im_info: [chip_w, chip_h, im_scale, im_w, im_h]
+    pred_x1 = fmaxf(fminf(pred_x1, im_info[5*b+1] - 1.0f), 0.0f);
+    pred_y1 = fmaxf(fminf(pred_y1, im_info[5*b] - 1.0f), 0.0f);
+    pred_x2 = fmaxf(fminf(pred_x2, im_info[5*b+1] - 1.0f), 0.0f);
+    pred_y2 = fmaxf(fminf(pred_y2, im_info[5*b] - 1.0f), 0.0f);
     boxes[6*t] = pred_x1;
     boxes[6*t + 1] = pred_y1;
     boxes[6*t + 2] = pred_x2;
     boxes[6*t + 3] = pred_y2;
-    
+
     int min_size = 3;
     if ((pred_y2 - pred_y1) < min_size && (pred_x2 - pred_x1) < min_size) {
       boxes[6*t] -= min_size/2;
@@ -322,9 +331,11 @@ __global__ void getProps(float* boxes,
       boxes[6*t + 3] += min_size/2;
       boxes[6*t + 4] = -1;
     }
+    // modified: use reletaive area for valid_ranges filtering
     float area = (boxes[6*t + 2] - boxes[6*t]) * (boxes[6*t + 3] - boxes[6*t + 1]);
-    if (area >= valid_ranges[2*b+1] * valid_ranges[2*b+1] || area < valid_ranges[2*b]*valid_ranges[2*b]) {
-      boxes[6*t + 4] = -1;  
+    float rel_area = area / (im_info[5*b+3] * im_info[5*b+4]);
+    if (rel_area >= valid_ranges[2*b+1] * valid_ranges[2*b+1] ||rel_area < valid_ranges[2*b]*valid_ranges[2*b]) {
+      boxes[6*t + 4] = -1;
     }
     boxes[6*t + 5] = area;
   }
@@ -349,7 +360,7 @@ class MultiProposalTargetGPUOp : public Operator{
     this->param_ = param;
     int batch_size = 16;//param.batch_size;
     this->proposals = new float[batch_size*21*6*32*32];
-    this->im_info = new float[batch_size*3];
+    this->im_info = new float[batch_size*5]; //modified: im_info now has length 5
     this->gt_boxes = new float[batch_size*100*5];
     this->valid_ranges = new float[batch_size*2];
     this->rois = new float[300*batch_size*5];
@@ -366,7 +377,7 @@ class MultiProposalTargetGPUOp : public Operator{
                        const std::vector<TBlob> &aux_states) {
     CHECK_EQ(in_data.size(), 5);
     CHECK_EQ(out_data.size(), 4);
-    
+
     using namespace mshadow;
     using namespace mshadow::expr;
     //clock_t t;
@@ -390,12 +401,12 @@ class MultiProposalTargetGPUOp : public Operator{
     int bufsize = (total_anchors*6 + num_images*rpn_post_nms_top_n*5 + num_anchors*4)*sizeof(float);
     Tensor<gpu, 1> workspace = ctx.requested[proposal::kTempSpace].get_space_typed<gpu, 1, float>(Shape1(bufsize), s);
 
-    cudaMemcpy(im_info, tim_info.dptr_, 3 * sizeof(float) * num_images, cudaMemcpyDeviceToHost);
+    cudaMemcpy(im_info, tim_info.dptr_, 5 * sizeof(float) * num_images, cudaMemcpyDeviceToHost);
     cudaMemcpy(gt_boxes, tgt_boxes.dptr_, 5 * sizeof(float) * num_images * 100, cudaMemcpyDeviceToHost);
     cudaMemcpy(valid_ranges, tvalid_ranges.dptr_, 2 * sizeof(float) * num_images, cudaMemcpyDeviceToHost);
 
     float* propbuf = workspace.dptr_;
-    float* propsout = workspace.dptr_ + total_anchors*6;    
+    float* propsout = workspace.dptr_ + total_anchors*6;
     float* anchorbuf = workspace.dptr_ + total_anchors*6 + num_images*rpn_post_nms_top_n*5;
 
     std::vector<float> base_anchor(4);
@@ -414,12 +425,12 @@ class MultiProposalTargetGPUOp : public Operator{
     cudaMemcpy(anchorbuf, &anchors[0], size, cudaMemcpyHostToDevice);
 
     //call cuda kernel
-    int threadsPerBlock = NUM_THREADS_NMS; 
+    int threadsPerBlock = NUM_THREADS_NMS;
     int numblocks = (total_anchors/threadsPerBlock) + 1;
     utils::getProps<<<numblocks, threadsPerBlock>>>(propbuf, tbbox_deltas.dptr_, tim_info.dptr_, anchorbuf, tscores.dptr_,
                                                     tvalid_ranges.dptr_, num_images, num_anchors, height, width, param_.feature_stride);
     cudaDeviceSynchronize();
-    
+
     utils::NonMaximumSuppression<<<num_images, threadsPerBlock>>>(propbuf, rpn_post_nms_top_n, num_images, num_anchors, width, height, propsout);
     cudaDeviceSynchronize();
     cudaError_t error;
@@ -431,7 +442,7 @@ class MultiProposalTargetGPUOp : public Operator{
     exit(-1);
   }
     cudaMemcpy(rois, propsout, 5*rpn_post_nms_top_n*num_images*sizeof(float), cudaMemcpyDeviceToHost);
-    
+
     std::vector <int> numgts_per_image(num_images);
     std::vector <int> sumgts_per_image(num_images);
 
@@ -469,7 +480,8 @@ class MultiProposalTargetGPUOp : public Operator{
       for (int k = props_this_batch - numgts_per_image[i], j = 0; k < props_this_batch; j++, k++) {
           float w = gt_boxes[i*100*5 + j*5 + 2] - gt_boxes[i*500 + j*5];
           float h = gt_boxes[i*500 + j*5 + 3] - gt_boxes[i*500 + j*5 + 1];
-          float area = w*h;
+          // use relative area for valid_range filtering
+          float area = (w*h) / (im_info[5*i+3] * im_info[5*i+4]);
           if (area >= valid_ranges[2*i]*valid_ranges[2*i] && area <= valid_ranges[2*i+1]*valid_ranges[2*i+1]) {
             rois[i*rpn_post_nms_top_n*5 + k*5 + 1] = gt_boxes[i*500 + j*5];
             rois[i*rpn_post_nms_top_n*5 + k*5 + 2] = gt_boxes[i*500 + j*5 + 1];
@@ -574,10 +586,10 @@ class MultiProposalTargetGPUOp : public Operator{
         delete [] max_overlap_ids;
         delete [] overlaps;
         delete [] max_overlaps;
-      }      
+      }
     }
-    
-    Stream<gpu> *so = ctx.get_stream<gpu>();    
+
+    Stream<gpu> *so = ctx.get_stream<gpu>();
     Tensor<gpu, 2> orois = out_data[proposal::kRoIs].get<gpu, 2, real_t>(so);
     Tensor<gpu, 2> olabels = out_data[proposal::kLabels].get<gpu, 2, real_t>(so);
     Tensor<gpu, 2> obbox_targets = out_data[proposal::kBboxTarget].get<gpu, 2, real_t>(so);
@@ -585,7 +597,7 @@ class MultiProposalTargetGPUOp : public Operator{
     cudaMemcpy(orois.dptr_, rois, 5*sizeof(float) * num_images*300, cudaMemcpyHostToDevice);
     cudaMemcpy(olabels.dptr_, labels, sizeof(float) * num_images*300, cudaMemcpyHostToDevice);
     cudaMemcpy(obbox_targets.dptr_, bbox_targets, 4*sizeof(float) * num_images*300, cudaMemcpyHostToDevice);
-    cudaMemcpy(obbox_weights.dptr_, bbox_weights, 4*sizeof(float) * num_images*300, cudaMemcpyHostToDevice);    
+    cudaMemcpy(obbox_weights.dptr_, bbox_weights, 4*sizeof(float) * num_images*300, cudaMemcpyHostToDevice);
   }
 
   virtual void Backward(const OpContext &ctx,
