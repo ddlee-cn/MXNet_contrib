@@ -23,4 +23,4 @@ The original MXNet implementation of detection_out layer in SSD by [zhreshold](h
 
 Usage: perform matching between anchors and GT boxes, collect matching results.
 
-This OP is built from scratch for collecting detailed matching stat for anchors. It return the matched GT class, IOU for each anchor, which provide an overview for matching results. I also developed a series of metrics for evaluating anchor hyper-parameters. With that, we can gain insights about these anchor settings before training.
+This OP is built for collecting detailed matching stat for anchors. It returns the matched GT class, IOU for each anchor, which provide an overview for matching results. I also developed a series of metrics for evaluating anchor hyper-parameters. With that, we can gain insights about these anchor settings before training.
